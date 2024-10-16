@@ -3,6 +3,7 @@ import time
 import logging
 from .can_module import CANModule
 from typing import Callable, Dict, List
+from can import CanError
 
 class CANManager:
     def __init__(self, can_module: CANModule, logger: logging.Logger, config: dict) -> None:
@@ -51,14 +52,6 @@ class CANManager:
         except Exception as e:
             self.logger.error(f"CANListener thread crashed: {e}")
 
-    def stop_can_listener(self) -> None:
-        """Stop the CANListener thread gracefully."""
-        with self.lock:
-            if self.can_listener_thread and self.can_listener_thread.is_alive():
-                self.can_listener_stop_event.set()
-                self.can_listener_thread.join()
-                self.logger.info("CANListener thread stopped.")
-
     def start_can_responder(self, get_video_status) -> None:
         """Start the CANResponder thread to send periodic and immediate response messages."""
         self.can_responder_stop_event.clear()
@@ -98,9 +91,53 @@ class CANManager:
             except Exception as e:
                 self.logger.error(f"Error in CANResponder thread: {e}")
 
+    def _send_can_message_with_retry(self, can_response_data: List[int], max_retries: int = 3, retry_delay: float = 1.0) -> None:
+        """Attempt to send a CAN message with retries in case of failure."""
+        attempt = 0
+        while attempt < max_retries:
+            try:
+                # Send the CAN message using the CAN module
+                self.can_module.send_message(can_response_data)
+                self.logger.debug(f"Sent CAN message: {can_response_data}")
+                return  # If successful, return early
+            except CanError as e:
+                self.logger.error(f"Failed to send CAN message (Attempt {attempt+1}/{max_retries}): {str(e)}")
+                
+                if "No buffer space available" in str(e):
+                    self.logger.warning(f"CAN buffer full, retrying after {retry_delay} seconds.")
+                    time.sleep(retry_delay)
+                else:
+                    # If it's another error, retry as well but with logging
+                    time.sleep(retry_delay)
+                
+            attempt += 1
+        
+        # If all retries failed
+        self.logger.error(f"Failed to send CAN message after {max_retries} attempts: {can_response_data}")
+
+    def stop_can_listener(self) -> None:
+        """Stop the CANListener thread gracefully."""
+        with self.lock:
+            if self.can_listener_thread and self.can_listener_thread.is_alive():
+                self.can_listener_stop_event.set()
+
+                # Ensure we are not in the same thread
+                if threading.current_thread() != self.can_listener_thread:
+                    self.can_listener_thread.join(timeout=2)
+                else:
+                    self.logger.warning("Cannot join CANListener thread from within itself. Skipping join.")
+
+                self.logger.info("CANListener thread stopped.")
+    
     def stop_can_responder(self) -> None:
         """Stop the CANResponder thread gracefully."""
-        self.can_responder_stop_event.set()
-        if self.can_responder_thread:
-            self.can_responder_thread.join()
-        self.logger.info("Stopped CANResponder thread.")
+        with self.lock:
+            if self.can_responder_thread and self.can_responder_thread.is_alive():
+                self.can_responder_stop_event.set()
+            
+                # Ensure we are not in the same thread
+                if threading.current_thread() != self.can_listener_thread:
+                    self.can_responder_thread.join(timeout=2)
+                else:
+                    self.logger.warning("Cannot join CANResponder thread from within itself. Skipping join.")
+                self.logger.info("CANResponder thread stopped.")
