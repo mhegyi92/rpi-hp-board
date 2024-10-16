@@ -3,7 +3,7 @@ import threading
 import time
 import os
 
-CAN_DEVICE_ID = 0x0D4
+CAN_DEVICE_ID = 0x0DA
 CAN_CHANNEL = 'can0'
 BITRATE = 100000
 
@@ -66,17 +66,17 @@ def interactive_mode():
         user_input = input("Press 1-4 to send Messages or 'q' to quit: ").strip()
         
         if user_input == '1':
-            message_id = 0x0D4
+            message_id = 0x0DA
             data = [0x04, 0x01, 0x02, 0x01, 0x00, 0x00, 0x00, 0x00]
             send_specific_can_message(message_id, data)
         
         elif user_input == '2':
-            message_id = 0x0D4
+            message_id = 0x0DA
             data = [0x04, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00]
             send_specific_can_message(message_id, data)
      
         elif user_input == '3':
-            message_id = 0x0D4
+            message_id = 0x0DA
             data = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
             send_specific_can_message(message_id, data)
 

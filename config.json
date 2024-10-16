@@ -7,7 +7,7 @@
         "backup_count": 5 
     },
     "UI": {
-        "title": "SAW INTRO",
+        "title": "HP BOARD",
         "bg_color": "black",
         "standby": {
             "image_path": "assets/images/standby.jpg",
@@ -39,13 +39,13 @@
         }
     },
     "CAN": {
-        "device_id": "0x0D4",
+        "device_id": "0x0DA",
         "channel": "can0",
         "interface": "socketcan",
         "bitrate": 100000,
         "hardware_filters": [
             {
-                "can_id": "0x0D4", 
+                "can_id": "0x0DA", 
                 "can_mask": "0x7FF", 
                 "extended": false
             }
@@ -53,17 +53,17 @@
         "software_filters": [
             {
                 "name": "video_control",
-                "id_range": ["0x0D4", "0x0D4"],
+                "id_range": ["0x0DA", "0x0DA"],
                 "payload_conditions": ["0x04", "*", "*", "*", "*", "*", "*", "*"]
             },
             {
                 "name": "timer_control",
-                "id_range": ["0x0D4", "0x0D4"],
+                "id_range": ["0x0DA", "0x0DA"],
                 "payload_conditions": ["0x0C", "*", "*", "*", "*", "*", "*", "*"]
             },
             {
                 "name": "restart",
-                "id_range": ["0x0D4", "0x0D4"],
+                "id_range": ["0x0DA", "0x0DA"],
                 "payload_conditions": ["0x00", "0x00", "0x00", "0x00", "0x00", "0x00", "0x00", "0x00"]
             }
         ]
