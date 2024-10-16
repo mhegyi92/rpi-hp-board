@@ -1,0 +1,6 @@
+.venv
+__pycache__
+*.log
+*.log*
+collector.py
+collected_files_content.txt
