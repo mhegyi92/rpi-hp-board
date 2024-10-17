@@ -75,7 +75,7 @@ class CANManager:
                     playback_status, folder_selection, video_number = get_video_status()
                     video_response_data = [0x03, playback_status, folder_selection, video_number, 0x00, 0x00, 0x00, 0x00]
                     self.can_module.send_message(video_response_data)
-                    self.logger.debug(f"Sent immediate video playback status: {video_response_data}")
+                    # self.logger.debug(f"Sent immediate video playback status: {video_response_data}")
                                    
                     next_send_time = time.time() + self.responder_periodic_interval
 
@@ -83,7 +83,7 @@ class CANManager:
                     playback_status, folder_selection, video_number = get_video_status()
                     video_response_data = [0x03, playback_status, folder_selection, video_number, 0x00, 0x00, 0x00, 0x00]
                     self.can_module.send_message(video_response_data)
-                    self.logger.debug(f"Sent periodic video playback status: {video_response_data}")
+                    # self.logger.debug(f"Sent periodic video playback status: {video_response_data}")
                              
                     next_send_time = time.time() + self.responder_periodic_interval
 

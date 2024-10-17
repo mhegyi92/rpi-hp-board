@@ -31,6 +31,8 @@ class LoggingManager:
 
         # Set the log level for third-party libraries
         logging.getLogger('PIL').setLevel(logging.WARNING)
+        logging.getLogger('can.interfaces.socketcan.socketcan').setLevel(logging.INFO)  # Change to INFO or higher
+
         logging.getLogger('other_library').setLevel(logging.WARNING)
 
         logger = logging.getLogger(__name__)

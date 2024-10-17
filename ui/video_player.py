@@ -2,10 +2,13 @@ import tkinter as tk
 import vlc
 import logging
 import os
+import threading
+import time
 
 class VideoPlayer:
-    def __init__(self, canvas: tk.Canvas, config: dict) -> None:
-        """Initialize VideoPlayer with canvas and configuration."""
+    def __init__(self, root: tk.Tk, canvas: tk.Canvas, config: dict) -> None:
+        """Initialize VideoPlayer with root window, canvas, and configuration."""
+        self.root = root
         self.canvas = canvas
         self.video_base_path = config.get("video_base_path")
         self.instance = vlc.Instance()
@@ -44,8 +47,11 @@ class VideoPlayer:
         """Initialize the media player with the video."""
         media = self.instance.media_new(video_path)
         self.player.set_media(media)
+
+        # Get the canvas window handle and attach it to the media player
         handle = self.canvas.winfo_id()
-        self.player.set_xwindow(handle)
+        self.logger.debug(f"Attaching canvas window handle to media player: {handle}")
+        self.player.set_xwindow(handle)  # Always attach the window handle
 
     def _start_playback(self) -> None:
         """Start video playback."""
@@ -57,23 +63,51 @@ class VideoPlayer:
 
     def _on_video_end(self, event: vlc.Event) -> None:
         """Handle video end event."""
-        self.logger.debug("Video finished, clearing canvas.")
+        self.logger.debug("Video finished naturally, resetting media player.")
         self.stop_video()
-        # self.canvas.after(100, self._clear_and_start_timer)
-        self.canvas.after(100, self.clear_canvas)
 
     def stop_video(self) -> None:
         """Stop the video playback."""
         if self.player.is_playing():
             self.player.stop()
-        self.player.set_media(None)
-        self.player.set_xwindow(0)
-        self.player.release()
-        self._create_media_player()
-        self.canvas.after(100, self.clear_canvas)  # Clear the canvas after stopping
-        self.current_folder = None
-        self.current_video_file = None
+
+        # Clear canvas, reset the player, and recreate the canvas
+        threading.Thread(target=self._reset_after_stop).start()
+
+    def _reset_after_stop(self) -> None:
+        """Reset player after stopping video playback."""
+        self.logger.debug("Resetting media player after stop.")
+        
+        # Reset the player and recreate the canvas
+        self._reset_player()
+        self._recreate_canvas()
+
+        # Clear the canvas after stopping
+        self.canvas.after(100, self.clear_canvas)
         self.logger.debug("Video playback stopped and canvas reset.")
+
+    def _reset_player(self) -> None:
+        """Reset the player and reattach the canvas."""
+        self.logger.debug("Resetting media player...")
+        self.player.set_media(None)
+        self.player.set_xwindow(0)  # Reset window ID to detach from canvas
+        
+        self._create_media_player()  # Recreate the media player after reset
+
+    def _recreate_canvas(self) -> None:
+        """Recreate the canvas to ensure fresh rendering for the next video."""
+        self.logger.debug("Recreating the canvas...")
+
+        # Destroy the old canvas
+        self.canvas.destroy()
+
+        # Create a new canvas, reattach it to the root window, and configure it
+        self.canvas = tk.Canvas(self.root, bg="black", highlightthickness=0)
+        self.canvas.pack(fill=tk.BOTH, expand=True)
+
+        # Force the canvas to refresh
+        self.canvas.update_idletasks()
+        self.logger.debug("New canvas created and packed.")
 
     def get_current_status(self) -> int:
         """Return the current playback status (0x00 for stopped, 0x01 for playing)."""
@@ -105,17 +139,10 @@ class VideoPlayer:
         video_number = self.get_current_video_number()
         return playback_status, folder_selection, video_number
 
-    def _clear_and_start_timer(self) -> None:
-        """Clear the canvas and start the timer."""
-        self.clear_canvas()
-        if self.timer_start_callback:
-            self.logger.debug("Starting timer after video end.")
-            self.timer_start_callback()
-
     def set_timer_start_callback(self, callback: callable) -> None:
         """Set the callback to be triggered when the video ends."""
         self.timer_start_callback = callback
-    
+
     def clear_canvas(self) -> None:
         """Clear the canvas after video playback."""
         self.canvas.delete("all")

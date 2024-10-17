@@ -71,7 +71,7 @@ class Application:
         """Setup display components for standby, video, timer, and hints."""
         ui_config = self.config_manager.get_config_section("UI")
         self.standby_display = StandbyDisplay(self.canvas, ui_config.get("standby", {}))
-        self.video_player = VideoPlayer(self.canvas, ui_config.get("video", {}))
+        self.video_player = VideoPlayer(self.root, self.canvas, ui_config.get("video", {}))
         self.countdown_timer = CountdownTimer(self.canvas, ui_config.get("timer", {}))
         self.hint_display = HintDisplay(self.canvas, ui_config.get("hint", {}), self.countdown_timer)
 
