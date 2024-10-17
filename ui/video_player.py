@@ -42,6 +42,17 @@ class VideoPlayer:
 
         self._initialize_media(video_path)
         self._start_playback()
+        # Polling loop to check if the video is playing
+        start_time = time.time()
+        timeout = 5  # Timeout after 5 seconds
+        while time.time() - start_time < timeout:
+            if self.player.is_playing():
+                self.logger.debug("Video is now playing.")
+                break
+            time.sleep(0.1)  # Sleep for 100ms and check again
+
+        if not self.player.is_playing():
+            self.logger.error("Failed to start video playback within timeout period.")
 
     def _initialize_media(self, video_path: str) -> None:
         """Initialize the media player with the video."""
