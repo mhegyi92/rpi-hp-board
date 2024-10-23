@@ -81,7 +81,7 @@ class Application:
 
         # Setup full-screen mode and display standby image
         self.root.after(100, self.ui_manager.set_fullscreen)
-        self.root.after(500, self.standby_display.display_image)
+        self.root.after(500, self.standby_display.display_background)
 
         # Define CAN message filters and handlers
         can_filter_to_handler = self._setup_can_message_handlers()

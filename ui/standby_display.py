@@ -32,3 +32,12 @@ class StandbyDisplay:
 
         self.image_id = self.canvas.create_image(x, y, anchor=tk.CENTER, image=self.photo_image)
         self.logger.debug(f"Image displayed at ({x}, {y}).")
+
+    def display_background(self) -> None:
+        """Display only the background color on the canvas without an image."""
+        # Set the canvas background to the specified bg_color (default: black)
+        self.canvas.config(bg=self.bg_color)
+        if self.image_id:
+            self.canvas.delete(self.image_id)  # Remove the image if it's displayed
+            self.image_id = None
+        self.logger.debug(f"Canvas set to background color '{self.bg_color}' without image.")
