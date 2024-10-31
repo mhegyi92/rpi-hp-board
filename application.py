@@ -1,6 +1,7 @@
 import tkinter as tk
 import logging
 import threading
+import os
 import sys
 from typing import Callable
 from utils.configuration_manager import ConfigurationManager
@@ -35,8 +36,8 @@ class Application:
         self.ui_manager = UIManager(self.root, self.logger)
         self.command_processor = CommandProcessor(self.root, self.logger)
 
-        can_module = CANModule(self.logger, self.config_manager.get_config_section("CAN"))
-        self.can_manager = CANManager(can_module, self.logger, self.config_manager.get_config_section("CAN_MANAGER"))
+        self.can_module = CANModule(self.logger, self.config_manager.get_config_section("CAN"))
+        self.can_manager = CANManager(self.can_module, self.logger, self.config_manager.get_config_section("CAN_MANAGER"))
 
         self._setup_displays()
         self.video_player.set_timer_start_callback(self.countdown_timer.start)
@@ -133,7 +134,8 @@ class Application:
         return {
             "video_control": lambda id, data: self.command_processor.enqueue_command(self.handle_video_control, id, data),
             "timer_control": lambda id, data: self.command_processor.enqueue_command(self.handle_timer_control, id, data),
-            "restart": lambda id, data: self.restart_app()
+            "restart": lambda id, data: self.command_processor.enqueue_command(self.restart_app),
+            "shutdown": lambda id, data: self.command_processor.enqueue_command(self.shutdown_system)
         }
 
     def restart_app(self) -> None:
@@ -145,7 +147,13 @@ class Application:
         """Shutdown the application."""
         self.logger.info("Shutting down the application.")
         self._perform_cleanup_and_action(self._shutdown_ui_cleanup)
-
+    
+    def shutdown_system(self) -> None:
+        """Handle full system shutdown, including sending CAN shutdown message and performing system-level shutdown."""
+        self.logger.info("Initiating full system shutdown.")
+        self.can_module.send_message([0xFF] + [0x00] * 7)
+        self._perform_cleanup_and_action(self._system_shutdown_cleanup)
+    
     def _perform_cleanup_and_action(self, cleanup_action: Callable[[], None]) -> None:
         """Perform cleanup actions before executing shutdown or restart."""
         with self.lock:
@@ -153,7 +161,7 @@ class Application:
                 self.logger.debug("Action already in progress.")
                 return
             self.restart_in_progress = cleanup_action == self._restart_ui_cleanup
-            self.shutdown_in_progress = cleanup_action == self._shutdown_ui_cleanup
+            self.shutdown_in_progress = cleanup_action in (self._shutdown_ui_cleanup, self._system_shutdown_cleanup)
 
         threading.Thread(target=self._cleanup_and_execute_action, args=(cleanup_action,)).start()
 
@@ -164,7 +172,7 @@ class Application:
             self.command_processor.stop_processing()
             self.can_manager.stop_can_listener()
             self.can_manager.stop_can_responder()
-            self.can_manager.can_module.shutdown()
+            self.can_module.shutdown()
             self.countdown_timer.stop()
 
             self.root.after(100, cleanup_action)
@@ -172,7 +180,7 @@ class Application:
             self.logger.error(f"Cleanup operation failed: {e}")
         finally:
             with self.lock:
-                if cleanup_action == self._shutdown_ui_cleanup:
+                if cleanup_action in (self._shutdown_ui_cleanup, self._system_shutdown_cleanup):
                     self.shutdown_in_progress = False
                     self.logger.info("Shutdown completed.")
                 else:
@@ -191,6 +199,13 @@ class Application:
         self.logger.debug("Shutting down UI.")
         self._cleanup_ui()
         sys.exit(0)
+    
+    def _system_shutdown_cleanup(self) -> None:
+        """Perform cleanup and execute system shutdown."""
+        self.logger.debug("Performing system shutdown cleanup.")
+        self._cleanup_ui()
+        os.system('shutdown now')  # System-level shutdown command
+        sys.exit(0)
 
     def _cleanup_ui(self) -> None:
         """Common UI cleanup logic."""
@@ -198,3 +213,4 @@ class Application:
         self.root.quit()
         self.root.update()
         self.root.destroy()
+        

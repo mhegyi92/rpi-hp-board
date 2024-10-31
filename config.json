@@ -65,6 +65,11 @@
                 "name": "restart",
                 "id_range": ["0x0DA", "0x0DA"],
                 "payload_conditions": ["0x00", "0x00", "0x00", "0x00", "0x00", "0x00", "0x00", "0x00"]
+            },
+            {
+                "name": "shutdown",
+                "id_range": ["0x0DA", "0x0DA"],
+                "payload_conditions": ["0xFE", "*", "*", "*", "*", "*", "*", "*"]
             }
         ]
     },
