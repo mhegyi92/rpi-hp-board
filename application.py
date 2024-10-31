@@ -58,6 +58,7 @@ class Application:
         """Setup UI components such as root window and canvas."""
         ui_config = self.config_manager.get_config_section("UI")
         self.root.title(ui_config.get("title", "Delayed Full Screen Canvas"))
+        self.root.config(cursor="none")
         self.canvas = tk.Canvas(self.root, bg=ui_config.get("bg_color"), highlightthickness=0)
         self.canvas.pack(fill=tk.BOTH, expand=True)
 
