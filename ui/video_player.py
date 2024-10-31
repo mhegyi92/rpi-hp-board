@@ -11,7 +11,7 @@ class VideoPlayer:
         self.root = root
         self.canvas = canvas
         self.video_base_path = config.get("video_base_path")
-        self.instance = vlc.Instance()
+        self.instance = vlc.Instance("--aout=pulse")
         self._create_media_player()
         self.timer_start_callback = None
         self.current_folder = None
@@ -62,7 +62,9 @@ class VideoPlayer:
         # Get the canvas window handle and attach it to the media player
         handle = self.canvas.winfo_id()
         self.logger.debug(f"Attaching canvas window handle to media player: {handle}")
-        self.player.set_xwindow(handle)  # Always attach the window handle
+        self.player.set_xwindow(handle)
+        # self.player.audio_output_device_set(None, "alsa_output.platform-bcm2835_audio.stereo-fallback")
+        self.player.audio_output_device_set(None, "hw:CARD=Headphones,DEV=0")
 
     def _start_playback(self) -> None:
         """Start video playback."""
