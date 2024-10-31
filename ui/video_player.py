@@ -149,7 +149,7 @@ class VideoPlayer:
         """
         playback_status = self.get_current_status()
         folder_selection = self.get_current_folder_selection()
-        video_number = self.get_current_video_number()
+        video_number = self.get_current_video_number() if self.player.is_playing() else 0
         return playback_status, folder_selection, video_number
 
     def set_timer_start_callback(self, callback: callable) -> None:

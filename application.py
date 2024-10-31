@@ -21,6 +21,7 @@ class Application:
         """Initialize the Application class, including thread locks for handling restart and shutdown."""
         self.restart_in_progress = False
         self.shutdown_in_progress = False
+        self.correctness = 0b000
         self.lock = threading.Lock()  # Protects shutdown and restart states
         self.init_application()
 
@@ -91,7 +92,7 @@ class Application:
         # Start CANListener and CANResponder threads
         can_filters = self.config_manager.get_config_section("CAN")["software_filters"]
         self.can_manager.start_can_listener(can_filters, can_filter_to_handler)
-        self.can_manager.start_can_responder(self.video_player.get_video_status)
+        self.can_manager.start_can_responder(self.video_player.get_video_status, lambda: self.correctness)
 
         self.command_processor.process_queue()
 
@@ -100,20 +101,44 @@ class Application:
         self.logger.info("Application has stopped.")
 
     def handle_video_control(self, arbitration_id, data):
-        playback_status = data[1]
-        folder_selection = data[2]
-        video_number = data[3]
-        
+        folder_selection = data[1]  # Folder selection
+        play_video_flag = data[2]   # 0 for image display, non-zero for video play
+        correctness_bits = data[3]   # Last three bits represent correctness for games
+
         # Map folder selection to folder names
         folder_name = "hun" if folder_selection == 0x01 else "eng" if folder_selection == 0x02 else "Unknown"
-        
-        if playback_status == 0x00:
-            self.video_player.stop_video()
-            self.logger.debug("Received CAN message to stop video playback.")
-        elif playback_status == 0x01 and folder_name is not None:
-            self.logger.debug(f"Received CAN message to play video from folder '{folder_name}', video number '{video_number}'.")
-            self.video_player.play_video(folder_name, video_number)
-        
+
+        if play_video_flag == 0:
+            # Display images based on correctness of games
+            game1_correct = correctness_bits & 0b001
+            game2_correct = correctness_bits & 0b010
+            game3_correct = correctness_bits & 0b100
+
+            if game1_correct:
+                self.standby_display.display_image(f"assets/images/{folder_name}/image1.png")
+                self.correctness = 0b001
+                self.logger.debug("Displaying image1 for game1 correct.")
+            elif game2_correct:
+                self.standby_display.display_image(f"assets/images/{folder_name}/image2.png")
+                self.correctness = 0b011
+                self.logger.debug("Displaying image2 for game2 correct.")
+            elif game3_correct:
+                self.standby_display.display_image(f"assets/images/{folder_name}/image3.png")
+                self.correctness = 0b111
+                self.logger.debug("Displaying image3 for game3 correct.")
+            else:
+                self.standby_display.display_image(f"assets/images/{folder_name}/image0.png")
+                self.correctness = 0b000
+                self.logger.debug("No games are marked correct. Displaying image0.")
+        else:
+            # Play video from selected folder
+            if folder_name != "Unknown":
+                self.logger.debug(f"Received CAN message to play video from folder '{folder_name}', video number '{play_video_flag}'.")
+                self.video_player.play_video(folder_name, play_video_flag)
+            else:
+                self.logger.error("Invalid folder selection received for video playback.")
+
+        # Trigger a CAN response as needed
         self.can_manager.trigger_immediate_response()
 
     def handle_timer_control(self, arbitration_id, data):
@@ -213,4 +238,3 @@ class Application:
         self.root.quit()
         self.root.update()
         self.root.destroy()
-        

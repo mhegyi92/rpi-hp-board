@@ -52,16 +52,16 @@ class CANManager:
         except Exception as e:
             self.logger.error(f"CANListener thread crashed: {e}")
 
-    def start_can_responder(self, get_video_status) -> None:
+    def start_can_responder(self, get_video_status: Callable[[], tuple], get_correctness: Callable[[], int]) -> None:
         """Start the CANResponder thread to send periodic and immediate response messages."""
         self.can_responder_stop_event.clear()
         self.can_responder_thread = threading.Thread(
-            target=self._send_periodic_responses, args=(get_video_status,), daemon=True, name="CANResponder"
+            target=self._send_periodic_responses, args=(get_video_status, get_correctness), daemon=True, name="CANResponder"
         )
         self.logger.info("Starting CANResponder thread.")
         self.can_responder_thread.start()
 
-    def _send_periodic_responses(self, get_video_status) -> None:
+    def _send_periodic_responses(self, get_video_status: Callable[[], tuple], get_correctness: Callable[[], int]) -> None:
         """Send video playback and timer status responses periodically, restarting the interval for immediate responses."""
         next_send_time = time.time() + self.responder_initial_delay
         
@@ -73,7 +73,8 @@ class CANManager:
                     self.immediate_response_event.clear()
                     
                     playback_status, folder_selection, video_number = get_video_status()
-                    video_response_data = [0x03, playback_status, folder_selection, video_number, 0x00, 0x00, 0x00, 0x00]
+                    correctness = get_correctness()
+                    video_response_data = [0x03, folder_selection, video_number, correctness, 0x00, 0x00, 0x00, 0x00]
                     self.can_module.send_message(video_response_data)
                     # self.logger.debug(f"Sent immediate video playback status: {video_response_data}")
                                    
@@ -81,7 +82,8 @@ class CANManager:
 
                 if current_time >= next_send_time:
                     playback_status, folder_selection, video_number = get_video_status()
-                    video_response_data = [0x03, playback_status, folder_selection, video_number, 0x00, 0x00, 0x00, 0x00]
+                    correctness = get_correctness()
+                    video_response_data = [0x03, folder_selection, video_number, correctness, 0x00, 0x00, 0x00, 0x00]
                     self.can_module.send_message(video_response_data)
                     # self.logger.debug(f"Sent periodic video playback status: {video_response_data}")
                              
