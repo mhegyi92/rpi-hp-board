@@ -28,7 +28,8 @@ class VideoPlayer:
 
     def play_video(self, folder_name: str, video_number: int) -> None:
         """Recreate the canvas and play the video from the specified folder and video number."""
-        self._recreate_canvas()  # Recreate the canvas before each playback
+        self.stop_video()
+        self._recreate_canvas()
 
         folder_path = os.path.join(self.video_base_path, folder_name)
         video_filename = f"video{video_number}.mkv"
@@ -86,10 +87,12 @@ class VideoPlayer:
             self.on_video_end_callback()
 
     def stop_video(self) -> None:
-        """Stop the video playback."""
+        """Stop the video playback and release resources."""
         if self.player.is_playing():
+            self.logger.debug("Stopping video playback.")
             self.player.stop()
-        self.logger.debug("Video playback stopped.")
+            self.player.release()  # Release and clean up the media player
+        self._create_media_player()  # Reinitialize the media player
 
     def _recreate_canvas(self) -> None:
         """Recreate the canvas before playing each video."""

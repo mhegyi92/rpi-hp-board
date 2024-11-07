@@ -72,17 +72,38 @@ def interactive_mode():
         
         elif user_input == '2':
             message_id = 0x0DA
-            data = [0x04, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00]
+            data = [0x04, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00]
             send_specific_can_message(message_id, data)
      
         elif user_input == '3':
             message_id = 0x0DA
-            data = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+            data = [0x04, 0x01, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00]
             send_specific_can_message(message_id, data)
 
         elif user_input == '4':
-            countdown_thread = threading.Thread(target=countdown_sender, daemon=True)
-            countdown_thread.start()        
+            message_id = 0x0DA
+            data = [0x04, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00]
+            send_specific_can_message(message_id, data)    
+        
+        if user_input == '5':
+            message_id = 0x0DA
+            data = [0x04, 0x01, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00]
+            send_specific_can_message(message_id, data)
+        
+        elif user_input == '6':
+            message_id = 0x0DA
+            data = [0x04, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00]
+            send_specific_can_message(message_id, data)
+     
+        elif user_input == '7':
+            message_id = 0x0DA
+            data = [0x04, 0x01, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00]
+            send_specific_can_message(message_id, data)
+
+        elif user_input == '8':
+            message_id = 0x0DA
+            data = [0x04, 0x01, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00]
+            send_specific_can_message(message_id, data)    
 
         elif user_input.lower() == 'q':
             print("Exiting interactive mode.")
