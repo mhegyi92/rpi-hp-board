@@ -51,3 +51,8 @@ class StandbyDisplay:
     def get_current_image_name(self) -> Optional[str]:
         """Return the path or name of the currently displayed image, if any."""
         return self.current_image_name
+
+    def update_canvas(self, new_canvas: tk.Canvas) -> None:
+        """Update the canvas reference to a new one."""
+        self.canvas = new_canvas
+        self.logger.debug("Canvas reference in StandbyDisplay updated.")

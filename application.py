@@ -41,7 +41,7 @@ class Application:
         self.can_manager = CANManager(self.can_module, self.logger, self.config_manager.get_config_section("CAN_MANAGER"))
 
         self._setup_displays()
-        self.video_player.set_timer_start_callback(self.countdown_timer.start)
+        self.video_player.set_on_video_end_callback(self.display_correctness_image)
 
     def _setup_logging(self) -> None:
         """Setup the logging system based on configuration."""
@@ -77,7 +77,9 @@ class Application:
         self.video_player = VideoPlayer(self.root, self.canvas, ui_config.get("video", {}))
         self.countdown_timer = CountdownTimer(self.canvas, ui_config.get("timer", {}))
         self.hint_display = HintDisplay(self.canvas, ui_config.get("hint", {}), self.countdown_timer)
-
+        self.root.standby_display = self.standby_display
+        self.root.application = self
+        
     def start(self) -> None:
         """Start the main application loop."""
         self.logger.info("Starting the application.")
@@ -100,6 +102,29 @@ class Application:
         self.root.mainloop()
         self.logger.info("Application has stopped.")
 
+    def display_correctness_image(self) -> None:
+        try:
+            self.logger.debug("display_correctness_image function entered.")
+            if not self.canvas.winfo_exists():
+                self.logger.error("Canvas does not exist when trying to display the image.")
+                return
+            
+            folder_name = "hun"  # Adjust folder logic as necessary
+            if self.correctness & 0b100:
+                self.standby_display.display_image(f"assets/images/{folder_name}/image1.png")
+                self.logger.debug("Displaying image1 for game 1 correct.")
+            elif self.correctness & 0b010:
+                self.standby_display.display_image(f"assets/images/{folder_name}/image2.png")
+                self.logger.debug("Displaying image2 for game 2 correct.")
+            elif self.correctness & 0b001:
+                self.standby_display.display_image(f"assets/images/{folder_name}/image3.png")
+                self.logger.debug("Displaying image3 for game 3 correct.")
+            else:
+                self.standby_display.display_image(f"assets/images/{folder_name}/image0.png")
+                self.logger.debug("No correctness bits set. Displaying default image0.")
+        except Exception as e:
+            self.logger.error(f"Error in display_correctness_image: {e}")
+
     def handle_video_control(self, arbitration_id, data):
         folder_selection = data[1]  # Folder selection
         play_video_flag = data[2]   # 0 for image display, non-zero for video play
@@ -110,25 +135,27 @@ class Application:
 
         if play_video_flag == 0:
             # Display images based on correctness of games
-            game1_correct = correctness_bits & 0b001
-            game2_correct = correctness_bits & 0b010
-            game3_correct = correctness_bits & 0b100
+            game1_correct = bool(correctness_bits & 0b100)
+            game2_correct = bool(correctness_bits & 0b010)
+            game3_correct = bool(correctness_bits & 0b001)
 
             if game1_correct:
                 self.standby_display.display_image(f"assets/images/{folder_name}/image1.png")
-                self.correctness = 0b001
-                self.logger.debug("Displaying image1 for game1 correct.")
-            elif game2_correct:
+                self.correctness |= 0b100
+                self.logger.debug("Game 1 is correct. Displaying image1.")
+            if game2_correct:
                 self.standby_display.display_image(f"assets/images/{folder_name}/image2.png")
-                self.correctness = 0b011
-                self.logger.debug("Displaying image2 for game2 correct.")
-            elif game3_correct:
+                self.correctness |= 0b010
+                self.logger.debug("Game 2 is correct. Displaying image2.")
+            if game3_correct:
                 self.standby_display.display_image(f"assets/images/{folder_name}/image3.png")
-                self.correctness = 0b111
-                self.logger.debug("Displaying image3 for game3 correct.")
-            else:
+                self.correctness |= 0b001
+                self.logger.debug("Game 3 is correct. Displaying image3.")
+
+            if not (game1_correct or game2_correct or game3_correct):
+                # No games are marked correct
                 self.standby_display.display_image(f"assets/images/{folder_name}/image0.png")
-                self.correctness = 0b000
+                self.correctness = 0b000  # Reset correctness bits
                 self.logger.debug("No games are marked correct. Displaying image0.")
         else:
             # Play video from selected folder
@@ -238,3 +265,9 @@ class Application:
         self.root.quit()
         self.root.update()
         self.root.destroy()
+    
+    def update_canvas(self, new_canvas: tk.Canvas) -> None:
+        """Update the canvas reference in the Application."""
+        self.canvas = new_canvas
+        self.standby_display.update_canvas(new_canvas)
+        self.logger.debug("Canvas reference in Application updated.")

@@ -67,7 +67,7 @@ def interactive_mode():
         
         if user_input == '1':
             message_id = 0x0DA
-            data = [0x04, 0x01, 0x02, 0x01, 0x00, 0x00, 0x00, 0x00]
+            data = [0x04, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00]
             send_specific_can_message(message_id, data)
         
         elif user_input == '2':
