@@ -1,12 +1,9 @@
 import tkinter as tk
 import logging
 import os
-import signal
-import sys
 import threading
-from typing import Callable
 import vlc
-from PIL import Image, ImageTk
+import time
 from utils.configuration_manager import ConfigurationManager
 from utils.logging_manager import LoggingManager
 from utils.signal_handler import SignalHandler
@@ -36,7 +33,7 @@ class Application:
         self.canvas.pack(fill='both', expand=True)
 
         # VLC media player instance
-        self.instance = vlc.Instance()
+        self.instance = vlc.Instance("--aout=pulse")
         self.player = self.instance.media_player_new()
 
         # Initialize CAN components
@@ -50,9 +47,6 @@ class Application:
         # Handle key bindings for manual testing
         self.root.bind('<Key>', self.on_key_press)
 
-        # Ensure graceful exit on Ctrl+C signal
-        signal.signal(signal.SIGINT, self.handle_sigint)
-
         # Start processing commands
         self.command_processor.process_queue()
 
@@ -64,6 +58,9 @@ class Application:
 
         # Current video tracker
         self.current_video = None
+        
+        # Ensure shutdown on window close
+        self.root.protocol("WM_DELETE_WINDOW", self.shutdown_app) 
 
     def _setup_logging(self):
         """Setup the logging system based on configuration."""
@@ -74,7 +71,7 @@ class Application:
 
     def _setup_signal_handler(self):
         """Setup signal handler for graceful shutdown."""
-        self.signal_handler = SignalHandler(self, self.logger)
+        self.signal_handler = SignalHandler(self)
         self.signal_handler.register_signal_handler()
         self.logger.debug("Signal handler setup complete.")
 
@@ -104,6 +101,7 @@ class Application:
             # Set the media to the player and play
             media = self.instance.media_new(video_path)
             self.player.set_media(media)
+            self.player.audio_output_device_set(None, "hw:CARD=vc4hdmi0,DEV=0")
 
             # Embed video to the tkinter window
             self.player.set_xwindow(self.canvas.winfo_id())
@@ -138,12 +136,6 @@ class Application:
             self.player.stop()
         self.root.destroy()
 
-    def handle_sigint(self, *args):
-        """Handle SIGINT (Ctrl+C) gracefully."""
-        self.logger.info("Ctrl+C pressed. Exiting...")
-        self.quit_app()
-        sys.exit(0)
-
     def can_message_handler(self, arbitration_id, data):
         """Handle incoming CAN messages."""
         try:
@@ -174,3 +166,30 @@ class Application:
         return {
             "control": lambda id, data: self.command_processor.enqueue_command(self.can_message_handler, id, data)
         }
+
+    def shutdown_app(self):
+        self.logger.info("Initiating application shutdown.")
+        start_time = time.time()
+        
+        # Stop CAN listener and responder
+        self.logger.info("Stopping CAN listener and responder.")
+        self.can_manager.stop_can_listener()
+        self.can_manager.stop_can_responder()
+        self.logger.info(f"Stopped CAN threads in {time.time() - start_time:.2f} seconds.")
+        
+        # Shutdown CAN module
+        self.logger.info("Shutting down CAN module.")
+        self.can_module.shutdown()
+        self.logger.info(f"CAN module shut down in {time.time() - start_time:.2f} seconds.")
+        
+        # Stop VLC player
+        if self.player.is_playing():
+            self.logger.info("Stopping VLC player.")
+            self.player.stop()
+            time.sleep(0.1)  # Ensure resources are released
+        self.logger.info(f"VLC player stopped in {time.time() - start_time:.2f} seconds.")
+        
+        # Close the Tkinter window
+        self.logger.info("Destroying Tkinter window.")
+        self.root.destroy()
+        self.logger.info(f"Application shutdown completed in {time.time() - start_time:.2f} seconds.")
