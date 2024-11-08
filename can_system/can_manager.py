@@ -47,17 +47,10 @@ class CANManager:
             self.can_listener_thread.start()
 
     def stop_can_listener(self) -> None:
-        """Stop the CANListener thread gracefully."""
         with self.lock:
             if self.can_listener_thread and self.can_listener_thread.is_alive():
                 self.can_listener_stop_event.set()
-
-                # Ensure we are not in the same thread
-                if threading.current_thread() != self.can_listener_thread:
-                    self.can_listener_thread.join(timeout=2)
-                else:
-                    self.logger.warning("Cannot join CANListener thread from within itself. Skipping join.")
-
+                self.can_listener_thread.join()  # Wait for the thread to exit
                 self.logger.info("CANListener thread stopped.")
                 self.can_listener_thread = None  # Reset the thread reference
 
@@ -81,17 +74,10 @@ class CANManager:
             self.can_responder_thread.start()
 
     def stop_can_responder(self) -> None:
-        """Stop the CANResponder thread gracefully."""
         with self.lock:
             if self.can_responder_thread and self.can_responder_thread.is_alive():
                 self.can_responder_stop_event.set()
-            
-                # Ensure we are not in the same thread
-                if threading.current_thread() != self.can_responder_thread:
-                    self.can_responder_thread.join(timeout=2)
-                else:
-                    self.logger.warning("Cannot join CANResponder thread from within itself. Skipping join.")
-                
+                self.can_responder_thread.join()  # Wait for the thread to exit
                 self.logger.info("CANResponder thread stopped.")
                 self.can_responder_thread = None  # Reset the thread reference
 

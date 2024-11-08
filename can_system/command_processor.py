@@ -49,18 +49,8 @@ class CommandProcessor:
             self.logger.error(f"Error executing command '{command.__name__}': {e}")
 
     def stop_processing(self) -> None:
-        """Stop processing commands and clear any remaining items in the queue."""
         with self.lock:
             if self.processing:
                 self.processing = False
-                if self.worker_thread:
-                    self.worker_thread.join(timeout=2)  # Join the worker thread if active
-                    self.worker_thread = None
-
-                # Clear remaining commands in the queue
-                while not self.command_queue.empty():
-                    command, args = self.command_queue.get_nowait()
-                    self.logger.debug(f"Discarding queued command: {command.__name__} with args: {args}")
-                    self.command_queue.task_done()
-
+                self.command_queue.join()  # Wait for the queue to be empty
                 self.logger.info("Stopped command processing.")
