@@ -1,16 +1,16 @@
-import os
 import logging
 import can
-from typing import List, Optional, Dict
 import time
+import subprocess
+from typing import List, Optional, Dict
 
 class CANModule:
-    def __init__(self, logger: logging.Logger, config: dict) -> None:
+    def __init__(self, config: dict) -> None:
         """Initialize CANModule with the provided configuration."""
         self.config = config
         self.device_id = int(self.config["device_id"], 16)
-        self.logger = logger
-        self.bus = None  # Make sure bus is initialized properly
+        self.logger = logging.getLogger(__name__)
+        self.bus = None
         self.hw_filters: Optional[List[Dict[str, int]]] = self.config.get("hardware_filters", None)
         self._initialize_can_module()
 
@@ -23,22 +23,31 @@ class CANModule:
     def _check_and_setup_interface(self) -> None:
         """Check if the CAN interface is up, and bring it up if it is down."""
         try:
-            interface_status = os.system(f"ip link show {self.config['channel']} | grep 'state UP'")
-            if interface_status != 0:
-                self.logger.debug(f"CAN interface '{self.config['channel']}' is down, attempting to bring it up.")
-                self._bring_interface_up()
+            command = f"ip link show {self.config['channel']} | grep 'state UP'"
+            result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if result.returncode != 0:
+                # Check specific error details from `stderr`
+                if "No such device" in result.stderr.decode():
+                    self.logger.error(f"CAN interface '{self.config['channel']}' does not exist.")
+                    raise RuntimeError(f"Interface '{self.config['channel']}' not found.")
+                elif "Permission denied" in result.stderr.decode():
+                    self.logger.error(f"Insufficient permissions to check CAN interface '{self.config['channel']}'.")
+                    raise PermissionError("Permission denied while accessing the CAN interface status.")
+                else:
+                    self.logger.debug(f"CAN interface '{self.config['channel']}' is down, attempting to bring it up.")
+                    self._bring_interface_up()
             else:
                 self.logger.debug(f"CAN interface '{self.config['channel']}' is already up.")
-        except Exception as e:
+        except subprocess.SubprocessError as e:
             self.logger.error(f"Failed to check or bring up CAN interface: {e}")
             raise
 
     def _check_bus_status(self) -> None:
         """Check if the CAN bus is experiencing transmission or reception errors and reset if necessary."""
+        rx_errors_file = f"/sys/class/net/{self.config['channel']}/statistics/rx_errors"
+        tx_errors_file = f"/sys/class/net/{self.config['channel']}/statistics/tx_errors"
+
         try:
-            rx_errors_file = f"/sys/class/net/{self.config['channel']}/statistics/rx_errors"
-            tx_errors_file = f"/sys/class/net/{self.config['channel']}/statistics/tx_errors"
-            
             with open(rx_errors_file, "r") as rx_f, open(tx_errors_file, "r") as tx_f:
                 rx_errors = int(rx_f.read().strip())
                 tx_errors = int(tx_f.read().strip())
@@ -51,36 +60,46 @@ class CANModule:
                 time.sleep(5)  # Additional wait to allow interface to stabilize
             else:
                 self.logger.debug("No CAN bus errors detected.")
+
         except FileNotFoundError as e:
-            self.logger.error(f"Error file not found: {e}")
+            self.logger.error(f"Error file not found: {e}. This may indicate a misconfiguration or missing files for the interface '{self.config['channel']}'.")
+        except PermissionError as e:
+            self.logger.error(f"Permission denied when accessing error files for CAN interface '{self.config['channel']}': {e}")
         except Exception as e:
-            self.logger.error(f"Failed to check or reset bus state: {e}")
+            self.logger.error(f"Unexpected error while checking or resetting CAN bus state: {e}")
             
     def _bring_interface_down(self) -> None:
         """Bring the CAN interface down."""
         try:
-            os.system(f"sudo ip link set {self.config['channel']} down")
+            command = f"sudo ip link set {self.config['channel']} down"
+            subprocess.run(command, shell=True, check=True)
             self.logger.debug(f"CAN interface '{self.config['channel']}' brought down.")
-        except Exception as e:
+        except subprocess.SubprocessError as e:
             self.logger.error(f"Failed to bring down CAN interface: {e}")
 
     def _bring_interface_up(self, retries=3) -> None:
         """Bring the CAN interface up with retries."""
         for attempt in range(retries):
             try:
-                os.system(f"sudo ip link set {self.config['channel']} type can bitrate {self.config['bitrate']}")
-                os.system(f"sudo ip link set {self.config['channel']} up")
+                # Setting CAN bitrate and bringing it up
+                command_bitrate = f"sudo ip link set {self.config['channel']} type can bitrate {self.config['bitrate']}"
+                subprocess.run(command_bitrate, shell=True, check=True)
+
+                command_up = f"sudo ip link set {self.config['channel']} up"
+                subprocess.run(command_up, shell=True, check=True)
+
                 self.logger.debug(f"CAN interface '{self.config['channel']}' brought up successfully.")
                 return
-            except Exception as e:
+            except subprocess.SubprocessError as e:
                 self.logger.error(f"Attempt {attempt+1}/{retries}: Failed to bring up CAN interface: {e}")
                 if attempt < retries - 1:
                     time.sleep(2)  # Wait before retrying
-        raise RuntimeError(f"Failed to bring up CAN interface after {retries} attempts.")
+        raise RuntimeError(f"Failed to bring up CAN interface after {retries} attempts: {e}")
 
     def _setup_can_interface(self) -> can.Bus:
         """Set up the CAN interface with the provided configuration."""
         try:
+            # Process hardware filters only once during setup if they are provided
             if self.hw_filters:
                 for hw_filter in self.hw_filters:
                     hw_filter['can_id'] = int(hw_filter['can_id'], 16)
@@ -90,7 +109,7 @@ class CANModule:
                 channel=self.config['channel'],
                 interface=self.config['interface'],
                 bitrate=self.config['bitrate'],
-                can_filters=self.hw_filters
+                can_filters=self.hw_filters if self.hw_filters else None
             )
             self.logger.info(f"CAN interface '{self.config['channel']}' initialized.")
             return bus
@@ -135,19 +154,25 @@ class CANModule:
     def _is_message_matching_filter(self, message: can.Message, filter: dict) -> bool:
         """Check if a message matches the given filter conditions."""
         try:
-            if not self.hw_filters or len(self.hw_filters) > 1:
-                id_range = [int(x, 16) for x in filter["id_range"]]
-                if not (id_range[0] <= message.arbitration_id <= id_range[1]):
-                    return False
+            # Check if the arbitration ID falls within the specified range
+            id_range = [int(x, 16) for x in filter["id_range"]]
+            if not (id_range[0] <= message.arbitration_id <= id_range[1]):
+                return False
 
+            # Check payload conditions
             for index, expected_value in enumerate(filter["payload_conditions"]):
                 if expected_value != "*" and expected_value is not None:
+                    # Verify each condition matches the expected value in the payload
                     if message.data[index] != int(expected_value, 16):
                         return False
 
+            # All conditions met, return True
             return True
-        except (ValueError, IndexError) as e:
-            self.logger.error(f"Error checking payload condition: {e}")
+        except ValueError as e:
+            self.logger.error(f"Value error when processing filter conditions: {e}. Check payload_conditions format.")
+            return False
+        except IndexError as e:
+            self.logger.error(f"Index error: payload length mismatch. Message data: {message.data}, filter: {filter}")
             return False
 
     def shutdown(self) -> None:

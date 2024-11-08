@@ -1,41 +1,25 @@
 {
     "LOGGING": {
+        "file": "app.log",
         "level": "DEBUG",
         "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        "file": "app.log",
         "max_bytes": 10485760,
-        "backup_count": 5 
+        "backup_count": 5,
+        "external_log_levels": {
+            "PIL": "WARNING",
+            "can": "WARNING"
+        }
     },
     "UI": {
         "title": "HP BOARD",
         "bg_color": "black",
-        "standby": {
-            "image_path": "assets/images/standby.jpg",
+        "images": {
+            "image_base_path": "assets/images",
+            "standby_image_path": "assets/images/standby.jpg",
             "bg_color": "black"
         },
         "video": {
             "video_base_path": "assets/videos"
-        },
-        "timer": {
-            "duration": 60,
-            "font_size": 350,
-            "font_path": "Digital-7 Mono",
-            "font_color": "red",
-            "bg_color": "black"
-        },
-        "hint": {
-            "font_size": 70,
-            "font_path": "Bloody Terror",
-            "font_color": "red",
-            "bg_color": "black",
-            "typewriter_effect": true,
-            "typing_speed": 50,
-            "default_display_duration": 3000,
-            "hints": {
-                "input_1": "Hint 1",
-                "input_2": "Hint 2",
-                "input_3": "Hint 3"
-            }
         }
     },
     "CAN": {
@@ -52,22 +36,17 @@
         ],
         "software_filters": [
             {
-                "name": "video_control",
+                "name": "control",
                 "id_range": ["0x0DA", "0x0DA"],
                 "payload_conditions": ["0x04", "*", "*", "*", "*", "*", "*", "*"]
             },
             {
-                "name": "timer_control",
-                "id_range": ["0x0DA", "0x0DA"],
-                "payload_conditions": ["0x0C", "*", "*", "*", "*", "*", "*", "*"]
-            },
-            {
-                "name": "restart",
+                "name": "restart_app",
                 "id_range": ["0x0DA", "0x0DA"],
                 "payload_conditions": ["0x00", "0x00", "0x00", "0x00", "0x00", "0x00", "0x00", "0x00"]
             },
             {
-                "name": "shutdown",
+                "name": "shutdown_system",
                 "id_range": ["0x0DA", "0x0DA"],
                 "payload_conditions": ["0xFE", "*", "*", "*", "*", "*", "*", "*"]
             }

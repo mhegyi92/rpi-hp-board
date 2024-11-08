@@ -110,12 +110,12 @@ def interactive_mode():
             break
         
         else:
-            print("Invalid input. Please press '1', '2', '3', '4' or 'q'.")
+            print("Invalid input. Please press '1-9' or 'q'.")
 
 def receive_can_messages():
     """Function to receive CAN messages and print them."""
     try:
-        bus = can.interface.Bus(channel=CAN_CHANNEL, bustype='socketcan', bitrate=BITRATE)
+        bus = can.interface.Bus(channel=CAN_CHANNEL, interface='socketcan', bitrate=BITRATE)
 
         while True:
             message = bus.recv(timeout=1.0)
