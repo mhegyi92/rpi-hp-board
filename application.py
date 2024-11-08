@@ -13,10 +13,11 @@ from can_system.command_processor import CommandProcessor
 
 class Application:
     def __init__(self, root):
-        # Initialize configuration, logging, and signal handling
+        self.is_shutting_down = False
+        self.lock = threading.Lock()
+
         self.config_manager = ConfigurationManager('config.json')
         self._setup_logging()
-        self._setup_signal_handler()
 
         self.root = root
         self.root.configure(bg='black')
@@ -56,6 +57,8 @@ class Application:
             self._setup_can_message_handlers()
         )
 
+        self._setup_signal_handler()
+
         # Current video tracker
         self.current_video = None
         
@@ -71,7 +74,7 @@ class Application:
 
     def _setup_signal_handler(self):
         """Setup signal handler for graceful shutdown."""
-        self.signal_handler = SignalHandler(self)
+        self.signal_handler = SignalHandler(self, self.command_processor)
         self.signal_handler.register_signal_handler()
         self.logger.debug("Signal handler setup complete.")
 
@@ -168,28 +171,48 @@ class Application:
         }
 
     def shutdown_app(self):
-        self.logger.info("Initiating application shutdown.")
-        start_time = time.time()
-        
-        # Stop CAN listener and responder
-        self.logger.info("Stopping CAN listener and responder.")
-        self.can_manager.stop_can_listener()
-        self.can_manager.stop_can_responder()
-        self.logger.info(f"Stopped CAN threads in {time.time() - start_time:.2f} seconds.")
-        
-        # Shutdown CAN module
-        self.logger.info("Shutting down CAN module.")
-        self.can_module.shutdown()
-        self.logger.info(f"CAN module shut down in {time.time() - start_time:.2f} seconds.")
-        
-        # Stop VLC player
-        if self.player.is_playing():
-            self.logger.info("Stopping VLC player.")
-            self.player.stop()
-            time.sleep(0.1)  # Ensure resources are released
-        self.logger.info(f"VLC player stopped in {time.time() - start_time:.2f} seconds.")
-        
-        # Close the Tkinter window
-        self.logger.info("Destroying Tkinter window.")
-        self.root.destroy()
-        self.logger.info(f"Application shutdown completed in {time.time() - start_time:.2f} seconds.")
+        self.root.update()
+        with self.lock:
+            if not self.is_shutting_down:
+                self.is_shutting_down = True
+                self.logger.info("Initiating application shutdown.")
+
+                # Stop CAN listener and responder
+                self.logger.info("Stopping CAN listener and responder.")
+                self.can_manager.stop_can_listener()
+                self.can_manager.stop_can_responder()
+
+                # Wait for a short time to allow any remaining CAN messages to be processed
+                time.sleep(1)
+
+                # Process events to ensure UI updates are handled
+                self._process_ui_updates()
+
+                # Shutdown CAN module
+                self.logger.info("Shutting down CAN module.")
+                self.can_module.shutdown()
+
+                # Stop VLC player
+                if self.player.is_playing():
+                    self.logger.info("Stopping VLC player.")
+                    self.player.stop()
+                    time.sleep(0.1)  # Ensure resources are released
+                self._process_ui_updates()
+
+                # Close the Tkinter window
+                self.logger.info("Destroying Tkinter window.")
+                try:
+                    self.root.destroy()
+                except tk.TclError:
+                    self.logger.warning("Tkinter window already destroyed.")
+
+    def _process_ui_updates(self):
+        """Periodically update the UI to process events."""
+        try:
+            for _ in range(5):  # Update a few times to ensure events are processed
+                self.root.update_idletasks()
+                self.root.update()
+                time.sleep(0.1)  # Small delay between updates
+        except tk.TclError:
+            # Tkinter window is likely already destroyed
+            pass
