@@ -20,6 +20,7 @@ class Application:
         self._setup_logging()
 
         self.root = root
+        self.root.configure(cursor="none")
         self.root.configure(bg='black')
 
         # Load video base path from config
